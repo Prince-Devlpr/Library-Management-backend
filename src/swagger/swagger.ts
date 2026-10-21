@@ -10,8 +10,12 @@ const swaggerDefinition = {
   },
   servers: [
     {
+      url: 'https://library-management-backend-cr47.onrender.com/api/v1',
+      description: 'Production Server (Render)',
+    },
+    {
       url: '/api/v1',
-      description: 'API v1 Base URL',
+      description: 'Relative API v1 Base URL',
     },
   ],
   components: {
