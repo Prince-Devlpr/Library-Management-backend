@@ -325,59 +325,64 @@ async function main() {
   const twentyDaysAgo = new Date(now.getTime() - 20 * 24 * 60 * 60 * 1000);
   const sixDaysAgo = new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000);
 
-  // Active Loan for Alex Rivera
-  const borrowedCopy1 = createdCopies.find((c) => c.barcode === 'CC-002');
-  if (borrowedCopy1) {
-    await prisma.loan.create({
-      data: {
-        userId: member.id,
-        copyId: borrowedCopy1.id,
-        issueDate: twoDaysAgo,
-        dueDate: twelveDaysAhead,
-        status: 'ACTIVE',
-        renewalCount: 0,
-      },
-    });
-  }
+  try {
+    // Active Loan for Alex Rivera
+    const borrowedCopy1 = createdCopies.find((c) => c.barcode === 'CC-002');
+    if (borrowedCopy1) {
+      await prisma.loan.create({
+        data: {
+          userId: member.id,
+          copyId: borrowedCopy1.id,
+          issueDate: twoDaysAgo,
+          dueDate: twelveDaysAhead,
+          status: 'ACTIVE',
+          renewalCount: 0,
+        },
+      });
+    }
 
-  // Overdue Loan with Unpaid Fine for Alice
-  const borrowedCopy2 = createdCopies.find((c) => c.barcode === 'DP-002');
-  if (borrowedCopy2) {
-    const overdueLoan = await prisma.loan.create({
-      data: {
-        userId: alice.id,
-        copyId: borrowedCopy2.id,
-        issueDate: twentyDaysAgo,
-        dueDate: sixDaysAgo,
-        status: 'OVERDUE',
-        renewalCount: 0,
-      },
-    });
+    // Overdue Loan with Unpaid Fine for Alice
+    const borrowedCopy2 = createdCopies.find((c) => c.barcode === 'DP-002');
+    if (borrowedCopy2) {
+      const overdueLoan = await prisma.loan.create({
+        data: {
+          userId: alice.id,
+          copyId: borrowedCopy2.id,
+          issueDate: twentyDaysAgo,
+          dueDate: sixDaysAgo,
+          status: 'OVERDUE',
+          renewalCount: 0,
+        },
+      });
 
-    await prisma.fine.create({
-      data: {
-        loanId: overdueLoan.id,
-        amount: 30.0, // 6 days * 5.0
-        paymentStatus: 'UNPAID',
-      },
-    });
-  }
+      await prisma.fine.create({
+        data: {
+          loanId: overdueLoan.id,
+          amount: 30.0, // 6 days * 5.0
+          paymentStatus: 'UNPAID',
+        },
+      });
+    }
 
-  // Active 24h Reservation for Bob with matching test pickup code
-  const reservedCopy = createdCopies.find((c) => c.barcode === 'CC-003');
-  if (reservedCopy) {
-    const expiryDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-    await prisma.reservation.create({
-      data: {
-        userId: bob.id,
-        copyId: reservedCopy.id,
-        pickupCode: 'RES-7492', // Matches quick-simulation button in Scanner Terminal!
-        qrToken: 'res_a1b2c3d4e5f6', // Matches quick-simulation button in Scanner Terminal!
-        reservationDate: now,
-        expiryDate,
-        status: 'ACTIVE',
-      },
-    });
+    // Active 24h Reservation for Bob with matching test pickup code
+    const reservedCopy = createdCopies.find((c) => c.barcode === 'CC-003');
+    if (reservedCopy) {
+      const expiryDate = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      await prisma.reservation.create({
+        data: {
+          userId: bob.id,
+          copyId: reservedCopy.id,
+          pickupCode: 'RES-7492', // Matches quick-simulation button in Scanner Terminal!
+          qrToken: 'res_a1b2c3d4e5f6', // Matches quick-simulation button in Scanner Terminal!
+          reservationDate: now,
+          expiryDate,
+          status: 'ACTIVE',
+        },
+      });
+    }
+    console.log('Seeded sample active loans, overdue fines, and reservations.');
+  } catch (err: any) {
+    console.warn('Notice: Sample loans/reservations creation skipped or partial:', err?.message || err);
   }
 
   // 7. Audit Log
