@@ -1,0 +1,311 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  USER
+  LIBRARIAN
+  ADMINISTRATOR
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CopyStatus {
+  AVAILABLE
+  RESERVED
+  BORROWED
+  LOST
+  DAMAGED
+}
+
+enum LoanStatus {
+  ACTIVE
+  RETURNED
+  OVERDUE
+}
+
+enum ReservationStatus {
+  ACTIVE
+  COLLECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+}
+
+enum PaymentMethod {
+  RAZORPAY
+  CASH_COUNTER
+}
+
+enum PaymentTransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  RESERVATION_CONFIRMED
+  DUE_SOON
+  OVERDUE
+  RESERVATION_READY
+  FINE_PAYMENT_SUCCESS
+  GENERAL
+}
+
+enum NotificationStatus {
+  READ
+  UNREAD
+}
+
+model User {
+  id                 String          @id @default(uuid())
+  registrationNumber String          @unique
+  name               String
+  email              String          @unique
+  phoneNumber        String
+  passwordHash       String
+  role               Role            @default(USER)
+  status             UserStatus      @default(ACTIVE)
+  cardQrToken        String?         @unique
+  registrationDate   DateTime        @default(now())
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  loans              Loan[]
+  loansIssued        Loan[]          @relation("LoanIssuer")
+  loansReturned      Loan[]          @relation("LoanReturner")
+  reservations       Reservation[]
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+  sessions           Session[]
+  policiesUpdated    LibraryPolicy[] @relation("PolicyUpdater")
+  payments           Payment[]
+
+  @@index([registrationNumber])
+  @@index([email])
+  @@index([role])
+  @@index([status])
+  @@index([cardQrToken])
+}
+
+model Session {
+  id             String    @id @default(uuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash      String    @unique
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  lastActivityAt DateTime  @default(now())
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime  @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@index([expiresAt])
+}
+
+model Book {
+  id              String     @id @default(uuid())
+  isbn            String
+  title           String
+  author          String
+  publisher       String
+  category        String
+  publicationYear Int
+  description     String?
+  coverUrl        String?
+  coverPublicId   String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  copies          BookCopy[]
+
+  @@index([isbn])
+  @@index([title])
+  @@index([author])
+  @@index([category])
+}
+
+model BookCopy {
+  id            String         @id @default(uuid())
+  bookId        String
+  book          Book           @relation(fields: [bookId], references: [id], onDelete: Restrict)
+  barcode       String         @unique
+  status        CopyStatus     @default(AVAILABLE)
+  shelfLocation String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  loans         Loan[]
+  reservations  Reservation[]
+
+  @@index([bookId])
+  @@index([barcode])
+  @@index([status])
+}
+
+model Loan {
+  id           String     @id @default(uuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Restrict)
+  copyId       String
+  copy         BookCopy   @relation(fields: [copyId], references: [id], onDelete: Restrict)
+  issuedById   String?
+  issuer       User?      @relation("LoanIssuer", fields: [issuedById], references: [id], onDelete: SetNull)
+  returnedById String?
+  returner     User?      @relation("LoanReturner", fields: [returnedById], references: [id], onDelete: SetNull)
+  issueDate    DateTime   @default(now())
+  dueDate      DateTime
+  returnDate   DateTime?
+  status       LoanStatus @default(ACTIVE)
+  renewalCount Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  fine         Fine?
+
+  @@index([userId])
+  @@index([copyId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([issuedById])
+  @@index([returnedById])
+}
+
+model Reservation {
+  id              String            @id @default(uuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  copyId          String
+  copy            BookCopy          @relation(fields: [copyId], references: [id], onDelete: Restrict)
+  qrToken         String?           @unique
+  pickupCode      String?           @unique
+  reservationDate DateTime          @default(now())
+  expiryDate      DateTime
+  status          ReservationStatus @default(ACTIVE)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([userId])
+  @@index([copyId])
+  @@index([status])
+  @@index([expiryDate])
+  @@index([qrToken])
+  @@index([pickupCode])
+}
+
+model Fine {
+  id            String        @id @default(uuid())
+  loanId        String        @unique
+  loan          Loan          @relation(fields: [loanId], references: [id], onDelete: Restrict)
+  amount        Decimal       @db.Decimal(10, 2)
+  amountPaise   Int           @default(0)
+  paymentStatus PaymentStatus @default(UNPAID)
+  paymentDate   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  payments      Payment[]
+
+  @@index([loanId])
+  @@index([paymentStatus])
+}
+
+model Payment {
+  id                 String                   @id @default(uuid())
+  userId             String
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  fineId             String
+  fine               Fine                     @relation(fields: [fineId], references: [id], onDelete: Restrict)
+  amountPaise        Int
+  currency           String                   @default("INR")
+  method             PaymentMethod            @default(RAZORPAY)
+  status             PaymentTransactionStatus @default(PENDING)
+  razorpayOrderId    String?                  @unique
+  razorpayPaymentId  String?                  @unique
+  razorpaySignature  String?
+  receiptNumber      String                   @unique
+  notes              Json?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@index([userId])
+  @@index([fineId])
+  @@index([status])
+  @@index([razorpayOrderId])
+  @@index([receiptNumber])
+}
+
+model WebhookEvent {
+  id          String    @id @default(uuid())
+  eventId     String    @unique
+  eventType   String
+  payload     Json
+  processed   Boolean   @default(false)
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([eventId])
+  @@index([eventType])
+  @@index([processed])
+}
+
+model Notification {
+  id               String             @id @default(uuid())
+  userId           String
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message          String
+  type             NotificationType
+  status           NotificationStatus @default(UNREAD)
+  notificationDate DateTime           @default(now())
+  createdAt        DateTime           @default(now())
+
+  @@index([userId])
+  @@index([status])
+  @@index([notificationDate])
+}
+
+model LibraryPolicy {
+  id                String   @id @default(uuid())
+  borrowLimit       Int      @default(3)
+  loanDuration      Int      @default(14)
+  reservationPeriod Int      @default(1) // 1 day = 24 hours strict
+  finePerDay        Decimal  @default(5.00) @db.Decimal(10, 2)
+  maxRenewals       Int      @default(2)
+  updatedBy         String?
+  updater           User?    @relation("PolicyUpdater", fields: [updatedBy], references: [id], onDelete: SetNull)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  details    Json?
+  ipAddress  String?
+  userAgent  String?
+  timestamp  DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entityType])
+  @@index([timestamp])
+}
