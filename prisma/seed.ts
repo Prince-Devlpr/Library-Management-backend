@@ -18,18 +18,24 @@ async function hash(pw: string): Promise<string> {
 async function main() {
   console.log('--- Seeding Library Management System with rich catalog & default accounts ---');
 
-  // Clear existing records in reverse dependency order
-  await prisma.auditLog.deleteMany();
-  await prisma.fine.deleteMany();
-  await prisma.payment.deleteMany();
-  await prisma.loan.deleteMany();
-  await prisma.reservation.deleteMany();
-  await prisma.notification.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.libraryPolicy.deleteMany();
-  await prisma.bookCopy.deleteMany();
-  await prisma.book.deleteMany();
-  await prisma.user.deleteMany();
+  // Clear existing records in reverse dependency order (safely handling missing tables)
+  const safeDelete = async (action: () => Promise<any>) => {
+    try {
+      await action();
+    } catch (_) {}
+  };
+
+  await safeDelete(() => prisma.auditLog.deleteMany());
+  await safeDelete(() => prisma.payment.deleteMany());
+  await safeDelete(() => prisma.fine.deleteMany());
+  await safeDelete(() => prisma.loan.deleteMany());
+  await safeDelete(() => prisma.reservation.deleteMany());
+  await safeDelete(() => prisma.notification.deleteMany());
+  await safeDelete(() => prisma.session.deleteMany());
+  await safeDelete(() => prisma.libraryPolicy.deleteMany());
+  await safeDelete(() => prisma.bookCopy.deleteMany());
+  await safeDelete(() => prisma.book.deleteMany());
+  await safeDelete(() => prisma.user.deleteMany());
 
   // Password Hashes
   const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin@123';
