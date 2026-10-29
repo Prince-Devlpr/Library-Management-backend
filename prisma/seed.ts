@@ -18,6 +18,11 @@ async function hash(pw: string): Promise<string> {
 async function main() {
   console.log('--- Seeding Library Management System with rich catalog & default accounts ---');
 
+  // Ensure database schema has price column prior to seeding operations
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "price" DECIMAL(10, 2) DEFAULT 499.00;
+  `).catch(() => {});
+
   // Clear existing records in reverse dependency order (safely handling missing tables)
   const safeDelete = async (action: () => Promise<any>) => {
     try {
@@ -300,7 +305,10 @@ async function main() {
   for (const b of booksData) {
     const { copies, ...bookData } = b;
     const book = await prisma.book.create({
-      data: bookData,
+      data: {
+        ...bookData,
+        price: (bookData as any).price || 499.00,
+      },
     });
 
     for (const c of copies) {
