@@ -127,6 +127,7 @@ model Book {
   category        String
   publicationYear Int
   description     String?
+  price           Decimal?   @default(499.00) @db.Decimal(10, 2)
   coverUrl        String?
   coverPublicId   String?
   createdAt       DateTime   @default(now())

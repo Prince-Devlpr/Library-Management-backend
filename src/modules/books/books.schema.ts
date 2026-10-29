@@ -8,7 +8,8 @@ export const CreateBookSchema = z.object({
   category: z.string().min(1, 'Category is required'),
   publicationYear: z.number().int().min(1000).max(new Date().getFullYear() + 1),
   description: z.string().optional(),
-  coverUrl: z.string().url().optional(),
+  price: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional(),
+  coverUrl: z.string().optional(),
   coverPublicId: z.string().optional(),
 });
 
@@ -20,7 +21,8 @@ export const UpdateBookSchema = z.object({
   category: z.string().min(1).optional(),
   publicationYear: z.number().int().min(1000).max(new Date().getFullYear() + 1).optional(),
   description: z.string().optional(),
-  coverUrl: z.string().url().optional(),
+  price: z.union([z.number(), z.string().transform((v) => parseFloat(v))]).optional(),
+  coverUrl: z.string().optional(),
   coverPublicId: z.string().optional(),
 });
 

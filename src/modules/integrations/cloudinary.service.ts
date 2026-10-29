@@ -45,6 +45,18 @@ export class CloudinaryService {
   }
 
   /**
+   * Uploads an image (base64 data URI or remote URL) directly to Cloudinary
+   */
+  public static async uploadImage(dataUriOrPath: string, folder: string = 'library/book_covers') {
+    this.configure();
+    const result = await cloudinary.uploader.upload(dataUriOrPath, { folder });
+    return {
+      url: result.secure_url,
+      publicId: result.public_id,
+    };
+  }
+
+  /**
    * Deletes an asset from Cloudinary when a book cover is replaced or deleted
    */
   public static async deleteAsset(publicId: string): Promise<boolean> {

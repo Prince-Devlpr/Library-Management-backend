@@ -12,3 +12,10 @@ uploadsRouter.get(
   authorizeRoles('LIBRARIAN', 'ADMINISTRATOR'),
   UploadsController.getUploadSignature
 );
+
+uploadsRouter.post(
+  '/image',
+  authenticate,
+  authorizeRoles('LIBRARIAN', 'ADMINISTRATOR'),
+  UploadsController.uploadImage
+);

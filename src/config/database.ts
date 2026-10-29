@@ -34,6 +34,11 @@ export async function connectDatabase(): Promise<void> {
   try {
     await prisma.$connect();
     logger.info('Database connected successfully.');
+    await prisma.$executeRawUnsafe(`
+      ALTER TABLE "Book" ADD COLUMN IF NOT EXISTS "price" DECIMAL(10, 2) DEFAULT 499.00;
+    `).catch((err) => {
+      logger.warn('Price column check note:', err?.message || err);
+    });
   } catch (error) {
     logger.error('Failed to connect to database', error);
     process.exit(1);
