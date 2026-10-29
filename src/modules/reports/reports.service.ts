@@ -10,12 +10,36 @@ export class ReportsService {
       if (to) where.issueDate.lte = new Date(to);
     }
 
-    const [totalIssues, activeLoans, returnedLoans, overdueLoans] = await Promise.all([
+    const [
+      totalIssues,
+      activeLoans,
+      returnedLoans,
+      overdueLoans,
+      totalPatrons,
+      activePatrons,
+      totalLibrarians,
+      totalTitles,
+      totalCopies,
+      activeReservations,
+      finesAssessedAgg,
+      finesCollectedAgg,
+    ] = await Promise.all([
       prisma.loan.count({ where }),
       prisma.loan.count({ where: { ...where, status: 'ACTIVE' } }),
       prisma.loan.count({ where: { ...where, status: 'RETURNED' } }),
       prisma.loan.count({ where: { ...where, status: 'OVERDUE' } }),
+      prisma.user.count({ where: { role: 'USER' } }),
+      prisma.user.count({ where: { role: 'USER', status: 'ACTIVE' } }),
+      prisma.user.count({ where: { role: 'LIBRARIAN' } }),
+      prisma.book.count(),
+      prisma.bookCopy.count(),
+      prisma.reservation.count({ where: { status: 'ACTIVE' } }),
+      prisma.fine.aggregate({ _sum: { amount: true } }),
+      prisma.fine.aggregate({ where: { paymentStatus: 'PAID' }, _sum: { amount: true } }),
     ]);
+
+    const totalFinesAssessedRupees = Number(finesAssessedAgg._sum.amount || 0);
+    const totalFinesCollectedRupees = Number(finesCollectedAgg._sum.amount || 0);
 
     return {
       period: { from: from || 'all-time', to: to || 'present' },
@@ -25,6 +49,18 @@ export class ReportsService {
         returnedLoans,
         overdueLoans,
       },
+      totalPatrons,
+      activePatrons,
+      totalLibrarians,
+      totalTitles,
+      totalCopies,
+      activeLoans,
+      overdueLoans,
+      activeReservations,
+      totalFinesAssessedRupees,
+      totalFinesCollectedRupees,
+      razorpayVolumeRupees: totalFinesCollectedRupees,
+      counterVolumeRupees: 0,
     };
   }
 
