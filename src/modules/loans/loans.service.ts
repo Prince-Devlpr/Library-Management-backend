@@ -270,8 +270,26 @@ export class LoansService {
     const returnTime = returnDate.getTime();
     const overdueMs = returnTime - dueTime;
     const overdueDays = overdueMs > 0 ? Math.floor(overdueMs / (1000 * 60 * 60 * 24)) : 0;
+    const overdueFineAmount = overdueDays > 0 ? Number(new Prisma.Decimal(overdueDays).mul(policy.finePerDay)) : 0;
 
-    let fineCreated: Fine | null = null;
+    // Condition calculation (Damaged / Lost inspection)
+    let conditionFineAmount = 0;
+    let targetCopyStatus: 'AVAILABLE' | 'DAMAGED' | 'LOST' = 'AVAILABLE';
+    const condition = input.condition || 'GOOD';
+
+    if (condition === 'DAMAGED') {
+      targetCopyStatus = 'DAMAGED';
+      conditionFineAmount = input.damageFine !== undefined ? Number(input.damageFine) : 150.00;
+    } else if (condition === 'LOST') {
+      targetCopyStatus = 'LOST';
+      const replacementCost = copy.book.price ? Number(copy.book.price) : 500.00;
+      conditionFineAmount = input.damageFine !== undefined ? Number(input.damageFine) : replacementCost;
+    } else {
+      targetCopyStatus = 'AVAILABLE';
+    }
+
+    const totalFineAmount = overdueFineAmount + conditionFineAmount;
+    let fineRecord: Fine | null = loan.fine;
 
     const result = await prisma.$transaction(async (tx) => {
       // 1. Mark loan as RETURNED
@@ -284,39 +302,54 @@ export class LoansService {
         },
       });
 
-      // 2. Mark copy as AVAILABLE
+      // 2. Mark copy status (AVAILABLE if good, DAMAGED if damaged, LOST if lost)
       await tx.bookCopy.update({
         where: { id: copy.id },
-        data: { status: 'AVAILABLE' },
+        data: { status: targetCopyStatus },
       });
 
-      // 3. If overdue and fine doesn't exist yet, create fine with paise
-      if (overdueDays > 0 && !loan.fine) {
-        const fineAmount = new Prisma.Decimal(overdueDays).mul(policy.finePerDay);
-        const amountPaise = Math.round(Number(fineAmount) * 100);
-        fineCreated = await tx.fine.create({
-          data: {
-            loanId: loan.id,
-            amount: fineAmount,
-            amountPaise,
-            paymentStatus: 'UNPAID',
-          },
-        });
+      // 3. Assess fine if overdue or damaged/lost
+      if (totalFineAmount > 0) {
+        const amountDecimal = new Prisma.Decimal(totalFineAmount);
+        const amountPaise = Math.round(totalFineAmount * 100);
+
+        if (loan.fine) {
+          fineRecord = await tx.fine.update({
+            where: { id: loan.fine.id },
+            data: {
+              amount: amountDecimal,
+              amountPaise,
+              paymentStatus: 'UNPAID',
+            },
+          });
+        } else {
+          fineRecord = await tx.fine.create({
+            data: {
+              loanId: loan.id,
+              amount: amountDecimal,
+              amountPaise,
+              paymentStatus: 'UNPAID',
+            },
+          });
+        }
       }
 
-      return { updatedLoan, fine: fineCreated || loan.fine };
+      return { updatedLoan, fine: fineRecord };
     });
 
-    if (overdueDays > 0) {
+    if (totalFineAmount > 0) {
+      const reasons: string[] = [];
+      if (overdueDays > 0) reasons.push(`${overdueDays} day(s) overdue (₹${overdueFineAmount.toFixed(2)})`);
+      if (conditionFineAmount > 0) reasons.push(`${condition.toLowerCase()} condition fee (₹${conditionFineAmount.toFixed(2)})`);
       await NotificationService.createNotification({
         userId: loan.userId,
-        message: `Book "${copy.book.title}" was returned ${overdueDays} day(s) late. An overdue fine has been applied.`,
+        message: `Book "${copy.book.title}" was returned with a fine of ₹${totalFineAmount.toFixed(2)} [${reasons.join(', ')}]. Please settle via counter cash or Razorpay.`,
         type: 'OVERDUE',
       });
     } else {
       await NotificationService.createNotification({
         userId: loan.userId,
-        message: `Book "${copy.book.title}" was successfully returned on time. Thank you!`,
+        message: `Book "${copy.book.title}" was successfully returned on time in good condition. Thank you!`,
         type: 'GENERAL',
       });
     }
@@ -329,7 +362,12 @@ export class LoansService {
       details: {
         barcode: copy.barcode,
         overdueDays,
-        fineGenerated: !!fineCreated,
+        condition,
+        overdueFineAmount,
+        conditionFineAmount,
+        totalFineAmount,
+        fineGenerated: !!result.fine,
+        notes: input.notes,
       },
       ipAddress,
       userAgent,
@@ -341,6 +379,9 @@ export class LoansService {
       bookTitle: copy.book.title,
       returnDate,
       overdueDays,
+      overdueFineAmount,
+      conditionFineAmount,
+      condition,
       fine: result.fine,
     };
   }
