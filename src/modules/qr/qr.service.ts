@@ -67,11 +67,14 @@ export class QrService {
     if (trimmed.startsWith('CASH-')) {
       return { type: 'CASH', token: trimmed, version: 'legacy' };
     }
+    if (trimmed.startsWith('RES-') || trimmed.startsWith('res_')) {
+      return { type: 'RESERVATION', token: trimmed, version: 'legacy' };
+    }
+    if (trimmed.startsWith('MEM-') || trimmed.startsWith('mem_')) {
+      return { type: 'MEMBER', token: trimmed, version: 'legacy' };
+    }
     if (trimmed.startsWith('BC-') || trimmed.length < 20) {
       return { type: 'COPY', token: trimmed, version: 'legacy' };
-    }
-    if (trimmed.startsWith('RES-')) {
-      return { type: 'RESERVATION', token: trimmed, version: 'legacy' };
     }
 
     return null;
