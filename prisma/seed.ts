@@ -22,7 +22,7 @@ async function main() {
   const safeDelete = async (action: () => Promise<any>) => {
     try {
       await action();
-    } catch (_) {}
+    } catch (_) { }
   };
 
   await safeDelete(() => prisma.auditLog.deleteMany());

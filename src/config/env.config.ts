@@ -24,7 +24,7 @@ const envSchema = z.object({
   RAZORPAY_KEY_SECRET: z.string().optional().default('placeholder_secret_32_characters_key'),
   RAZORPAY_WEBHOOK_SECRET: z.string().optional().default('webhook_secret_placeholder_key_32'),
   // Cloudinary
-  CLOUDINARY_CLOUD_NAME: z.string().optional().default('demo'),
+  CLOUDINARY_CLOUD_NAME: z.string().transform((v) => v.trim()).optional().default('demo'),
   CLOUDINARY_API_KEY: z.string().optional().default('1234567890'),
   CLOUDINARY_API_SECRET: z.string().optional().default('placeholder_api_secret'),
 });

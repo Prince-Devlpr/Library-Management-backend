@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import QRCode from 'qrcode';
 
-export type QrType = 'MEMBER' | 'RESERVATION' | 'COPY';
+export type QrType = 'MEMBER' | 'RESERVATION' | 'COPY' | 'CASH';
 
 export interface ParsedQrPayload {
   type: QrType;
@@ -32,9 +32,11 @@ export class QrService {
    * Member:      lms:v1:m:tok_a8f9c...
    * Reservation: lms:v1:r:tok_9b2e1...
    * Book Copy:   lms:v1:c:BC-100234
+   * Cash Voucher: lms:v1:cash:CASH-7492
    */
   public static formatPayload(type: QrType, identifier: string): string {
-    const typeCode = type === 'MEMBER' ? 'm' : type === 'RESERVATION' ? 'r' : 'c';
+    const typeCode =
+      type === 'MEMBER' ? 'm' : type === 'RESERVATION' ? 'r' : type === 'COPY' ? 'c' : 'cash';
     return `lms:v1:${typeCode}:${identifier}`;
   }
 
@@ -46,16 +48,25 @@ export class QrService {
     const trimmed = rawInput.trim();
 
     // Check versioned LMS format: lms:v1:<typeCode>:<token>
-    const match = trimmed.match(/^lms:v1:(m|r|c):(.+)$/i);
+    const match = trimmed.match(/^lms:v1:(m|r|c|cash):(.+)$/i);
     if (match) {
       const typeCode = match[1].toLowerCase();
       const token = match[2];
       const type: QrType =
-        typeCode === 'm' ? 'MEMBER' : typeCode === 'r' ? 'RESERVATION' : 'COPY';
+        typeCode === 'm'
+          ? 'MEMBER'
+          : typeCode === 'r'
+            ? 'RESERVATION'
+            : typeCode === 'c'
+              ? 'COPY'
+              : 'CASH';
       return { type, token, version: 'v1' };
     }
 
-    // Direct token fallback (e.g., raw barcode "BC-100234" or raw token)
+    // Direct token fallback (e.g., raw barcode "BC-100234", raw voucher "CASH-7492", or reservation)
+    if (trimmed.startsWith('CASH-')) {
+      return { type: 'CASH', token: trimmed, version: 'legacy' };
+    }
     if (trimmed.startsWith('BC-') || trimmed.length < 20) {
       return { type: 'COPY', token: trimmed, version: 'legacy' };
     }

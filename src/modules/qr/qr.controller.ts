@@ -278,6 +278,33 @@ export class QrController {
       return sendSuccess(res, { entityType: 'RESERVATION', data: reservation });
     }
 
+    if (parsed.type === 'CASH') {
+      const fine = await prisma.fine.findFirst({
+        where: {
+          OR: [
+            { id: parsed.token },
+            { loanId: parsed.token },
+          ],
+        },
+        include: {
+          loan: {
+            include: {
+              user: { select: { id: true, name: true, registrationNumber: true } },
+              copy: { include: { book: true } },
+            },
+          },
+        },
+      });
+
+      return sendSuccess(res, {
+        entityType: 'CASH_VOUCHER',
+        data: fine || {
+          voucherCode: parsed.token,
+          status: 'PENDING',
+        },
+      });
+    }
+
     throw new BusinessRuleError('Unsupported QR entity type');
   }
 }
