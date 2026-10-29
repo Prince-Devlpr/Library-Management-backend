@@ -90,9 +90,21 @@ export class ReservationsService {
       }
       targetCopyId = copy.id;
       targetBookTitle = copy.book.title;
-    } else if (input.bookId) {
-      const book = await prisma.book.findUnique({
-        where: { id: input.bookId },
+    } else if (input.bookId || input.isbn) {
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.bookId || '');
+      const whereCondition: any = isUuid
+        ? { id: input.bookId }
+        : input.isbn
+          ? { isbn: input.isbn }
+          : {
+              OR: [
+                { isbn: input.bookId },
+                { title: { contains: input.bookId, mode: 'insensitive' as const } },
+              ],
+            };
+
+      const book = await prisma.book.findFirst({
+        where: whereCondition,
         include: {
           copies: {
             where: { status: 'AVAILABLE' },
@@ -102,7 +114,7 @@ export class ReservationsService {
       });
 
       if (!book) {
-        throw new NotFoundError('Book not found');
+        throw new NotFoundError('Book not found in database');
       }
       if (!book.copies.length) {
         throw new ConflictError(
