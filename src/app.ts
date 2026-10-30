@@ -17,10 +17,12 @@ export function createApp(): Application {
   app.use(helmet());
 
   // CORS Configuration
-  const allowedOrigins = env.CORS_ORIGIN === '*' ? '*' : env.CORS_ORIGIN.split(',').map((o) => o.trim());
+  const isWildcard = env.CORS_ORIGIN === '*' || env.CORS_ORIGIN.split(',').map((o) => o.trim()).includes('*');
   app.use(
     cors({
-      origin: allowedOrigins,
+      origin: isWildcard
+        ? true
+        : env.CORS_ORIGIN.split(',').map((o) => o.trim()),
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
