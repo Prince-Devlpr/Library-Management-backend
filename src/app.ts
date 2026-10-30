@@ -17,12 +17,46 @@ export function createApp(): Application {
   app.use(helmet());
 
   // CORS Configuration
-  const isWildcard = env.CORS_ORIGIN === '*' || env.CORS_ORIGIN.split(',').map((o) => o.trim()).includes('*');
+  const defaultAllowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:4173',
+    'http://localhost:4174',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'http://127.0.0.1:4173',
+    'http://127.0.0.1:4174',
+    'https://library-management-backend-cr47.onrender.com',
+  ];
+
+  const configuredOrigins = env.CORS_ORIGIN === '*'
+    ? ['*']
+    : env.CORS_ORIGIN.split(',').map((o) => o.trim());
+
+  const hasWildcard = configuredOrigins.includes('*');
+
   app.use(
     cors({
-      origin: isWildcard
-        ? true
-        : env.CORS_ORIGIN.split(',').map((o) => o.trim()),
+      origin: (origin, callback) => {
+        // Allow requests with no origin (mobile apps, curl, postman)
+        if (!origin) return callback(null, true);
+
+        if (hasWildcard) return callback(null, true);
+
+        const allAllowed = new Set([...defaultAllowedOrigins, ...configuredOrigins]);
+        if (allAllowed.has(origin)) {
+          return callback(null, true);
+        }
+
+        // Allow any localhost/127.0.0.1 port in development/testing
+        if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+          return callback(null, true);
+        }
+
+        return callback(new Error(`Not allowed by CORS: ${origin}`));
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
